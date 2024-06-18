@@ -40,7 +40,7 @@ def thread_function(clientsocket):
     return
 
 def main():
-    serverPort = 8080
+    serverPort = 1200
     serverSocket = socket(AF_INET, SOCK_STREAM)
     serverSocket.bind(('127.0.0.1', serverPort))
     serverSocket.listen(5)
