@@ -1,8 +1,5 @@
 from socket import *
 import threading
-import os
-
-
 
 
 def thread_function(clientsocket):
@@ -29,10 +26,11 @@ def thread_function(clientsocket):
             html_body = html_file.read()
            
             response = 'HTTP/1.1 200 OK\r\n'
-            response += 'Content-Type: text/html; charset=UTF-8\r\n'
-            response += f"Content-Length: {len(html_body)}\r\n"
+            response += f"\r\n"
             response += html_body
             print(response)
+
+            clientsocket.sendall(response.encode())
         except FileNotFoundError:
             print("blablabla")
             return 
