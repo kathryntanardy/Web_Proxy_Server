@@ -2,23 +2,25 @@ from socket import *
 import threading
 import os
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+import hashlib
 
 def modifiable_files(path):
     restricted_dir = "restricted/"
     return not path.startswith(restricted_dir)
 
 def thread_function(clientsocket):
-    request = clientsocket.recv(1024).decode()
-
     wrong_syntax = False #400 error
     file_not_found_error = False #404 error
-    request_split = request.split('\r\n')
+    error_message = "" #error message for syntax error 
 
+    # Get the request and split
+    request = clientsocket.recv(1024).decode()
+    request_split = request.split('\r\n')
     request_line = request_split[0]
     print(request_line, '\n')
     request_line_split = request_line.split(' ')
 
+    # ---------- 400 Bad Request ----------
     # Check if request line have 3 or more fields
     if(len(request_line_split) >= 3):
         method = request_line_split[0]
@@ -27,6 +29,7 @@ def thread_function(clientsocket):
         http_ver = request_line_split[2]
         if http_ver != 'HTTP/1.1':
             wrong_syntax = True
+            error_message = "Malformed HTTP version: HTTP/1.1.1"
 
     #If the request line is not valid: 400 error     
     else: 
@@ -50,32 +53,38 @@ def thread_function(clientsocket):
             if target_resource == "favicon.ico":
                 return
             else:
-                # Check if there's a "If-Modified-Since" header
-                if have_modified_since_header:
-                    # Get HTML file last modified time
-                    file_modified_time = os.path.getmtime(target_resource)
-                    file_modified_time_dt = datetime.fromtimestamp(file_modified_time)
+                # # ---------- 304 Not Modified ----------
+                # # Check if there's a "If-Modified-Since" header
+                # if have_modified_since_header:
+                #     # Get HTML file last modified time
+                #     file_modified_time = os.path.getmtime(target_resource)
+                #     file_modified_time_dt = datetime.fromtimestamp(file_modified_time)
 
-                    # Compare if modified condition passes or not
-                    condition_time_dt = datetime.strptime(condition_time, '%a, %d %b %Y %H:%M:%S GMT')
+                #     # Compare if modified condition passes or not
+                #     condition_time_dt = datetime.strptime(condition_time, '%a, %d %b %Y %H:%M:%S GMT')
 
-                    #TODO: HELP ME
-                    condition_time_dt = condition_time_dt.replace(tzinfo=timezone.utc).astimezone(tz=None).replace(tzinfo=None) 
+                #     #TODO: HELP ME
+                #     condition_time_dt = condition_time_dt.replace(tzinfo=timezone.utc).astimezone(tz=None).replace(tzinfo=None) 
 
-                    if file_modified_time_dt <= condition_time_dt:
-                        response = 'HTTP/1.1 304 Not Modified\r\n'
-                        clientsocket.sendall(response.encode())
+                #     if file_modified_time_dt <= condition_time_dt:
+                #         response = 'HTTP/1.1 304 Not Modified\r\n'
+                #         clientsocket.sendall(response.encode())
                 
                 # Read the html file
                 html_file = open(target_resource, "r")
-                html_body = html_file.read()
+                if not modifiable_files(target_resource):
+                    response = 'HTTP/1.1 403 Forbidden\r\n'
+                    clientsocket.sendall(response.encode())
+                else:
+                    html_body = html_file.read()
+                    print(html_body)
 
-                # Create and send response
-                response = 'HTTP/1.1 200 OK\r\n'
-                response += '\r\n'
-                response += html_body
-                clientsocket.sendall(response.encode())
-
+                    # Create and send response
+                    response = 'HTTP/1.1 200 OK\r\n'
+                    response += '\r\n'
+                    response += html_body
+                    clientsocket.sendall(response.encode())
+                    
         except FileNotFoundError:
             print("HELLO")
             file_not_found_error = True
@@ -93,35 +102,86 @@ def thread_function(clientsocket):
             clientsocket.sendall(response_header.encode())
     
 
-    elif(method == 'PUT'):
-        if not modifiable_files(target_resource):
-            response =  "HTTP/1.1 403 Forbidden\r\n" 
-            clientsocket.sendall(response.encode())
+    # elif(method == 'PUT'):
+    #     if not modifiable_files(target_resource):
+    #         response =  "HTTP/1.1 403 Forbidden\r\n" 
+    #         clientsocket.sendall(response.encode())
+    #     else:
+    #         try:
+    #             if os.path.exists(target_resource):
+    #                 with open(file_path, 'w') as file:
+    #                 file.write(target_resource)
+    #                 response_header = "HTTP/1.1 200 OK\r\n\r\n"
+    #             else:
+    #                 with open(target_resource, 'w') as file:
+    #                     file.write(request_body)
+    #                     response_header = (
+    #                     "HTTP/1.1 201 Created\r\n"
+    #                     "Location: {}\r\n\r\n"
+    #                  ).format(path)
+    #                 client_socket.sendall(response_header.encode())
+    #             except Exception as e:
+    #                 response_header = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+    #                     client_socket.sendall(response_header.encode())
+                
+    elif(method == 'HEAD'):
+        # ---------- 304 Not Modified ----------
+        # Check if there's a "If-Modified-Since" header
+        if have_modified_since_header:
+            # Get HTML file last modified time
+            file_modified_time = os.path.getmtime(target_resource)
+            file_modified_time_dt = datetime.fromtimestamp(file_modified_time)
+
+            # Compare if modified condition passes or not
+            condition_time_dt = datetime.strptime(condition_time, '%a, %d %b %Y %H:%M:%S GMT')
+
+            #TODO: HELP ME
+            condition_time_dt = condition_time_dt.replace(tzinfo=timezone.utc).astimezone(tz=None).replace(tzinfo=None) 
+
+            if file_modified_time_dt <= condition_time_dt:
+                response = 'HTTP/1.1 304 Not Modified\r\n'
+                clientsocket.sendall(response.encode())
+
+        elif have_if_none_match:
+            # Get the ETag for test.html
+            etag = hashlib.md5(content.encode('utf-8')).hexdigest()
+            return
+
         else:
-            try:
-                if os.path.exists(target_resource):
-                    with open(file_path, 'w') as file:
-                    file.write(target_resource)
-                    response_header = "HTTP/1.1 200 OK\r\n\r\n"
-                else:
-                    with open(target_resource, 'w') as file:
-                        file.write(request_body)
-                        response_header = (
-                        "HTTP/1.1 201 Created\r\n"
-                        "Location: {}\r\n\r\n"
-                     ).format(path)
-                    client_socket.sendall(response_header.encode())
-                except Exception as e:
-                    response_header = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
-                        client_socket.sendall(response_header.encode())
+            # Outputs the HEAD
+            return
    
         
-    # 404 error
+    # ---------- 404 Not Found ----------
     if(file_not_found_error):
         response = 'HTTP/1.1 404 Not Found\r\n'
         clientsocket.sendall(response.encode())
+
+    # ---------- 400 Bad Request ----------
     elif(wrong_syntax):
-        response = 'HTTP/1.1 400 Bad Request'
+        response = 'HTTP/1.1 400 Bad Request\r\n'
+        response += f"""
+        <!DOCTYPE html>
+        <html>
+
+        <head>
+        <meta charset="utf-8">
+        <title></title>
+        <meta name="author" content="">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        </head>
+
+        <body>
+
+        <p>{error_message}</p>
+
+        </body>
+
+        </html>
+        """
+        print("dah bs 400 nya")
         clientsocket.sendall(response.encode())
         
     clientsocket.close()
