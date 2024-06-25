@@ -18,7 +18,7 @@ def thread_function(clientsocket):
     request = clientsocket.recv(1024).decode()
     request_split = request.split('\r\n')
     request_line = request_split[0]
-    print(request_line, '\n')
+    # print(request_line, '\n')
     request_line_split = request_line.split(' ')
 
     # ---------- 400 Bad Request ----------
@@ -59,33 +59,13 @@ def thread_function(clientsocket):
         try:
             if target_resource == "favicon.ico":
                 return
-            else:
-                # # ---------- 304 Not Modified ----------
-                # # Check if there's a "If-Modified-Since" header
-                # if have_modified_since_header:
-                #     print("HEREEEEEEEEEEEE")
-                #     # Get HTML file last modified time
-                #     file_modified_time = os.path.getmtime(target_resource)
-                #     file_modified_time_dt = datetime.fromtimestamp(file_modified_time)
-
-                #     # Compare if modified condition passes or not
-                #     condition_time_dt = datetime.strptime(condition_time, '%a, %d %b %Y %H:%M:%S GMT')
-
-                #     #TODO: HELP ME
-                #     condition_time_dt = condition_time_dt.replace(tzinfo=timezone.utc).astimezone(tz=None).replace(tzinfo=None) 
-
-                #     if file_modified_time_dt <= condition_time_dt:
-                #         print("ERRORRRRR")
-                #         response = 'HTTP/1.1 304 Not Modified\r\n'
-                #         clientsocket.sendall(response.encode())
-                
-                # else:
-                    # Read the html file
-                    html_file = open(target_resource, "r")
-                    if not modifiable_files(target_resource):
-                        response = 'HTTP/1.1 403 Forbidden\r\n'
-                        response += '\r\n'
-                        response += f"""<!DOCTYPE html>
+            else:                
+                # Read the html file
+                html_file = open(target_resource, "r")
+                if not modifiable_files(target_resource):
+                    response = 'HTTP/1.1 403 Forbidden\r\n'
+                    response += '\r\n'
+                    response += f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -99,15 +79,15 @@ def thread_function(clientsocket):
 </body>
 </html>
 """
-                        clientsocket.sendall(response.encode())
-                    else:
-                        response_html_body = html_file.read()
+                    clientsocket.sendall(response.encode())
+                else:
+                    response_html_body = html_file.read()
 
-                        # ---------- 200 OK ----------
-                        response = 'HTTP/1.1 200 OK\r\n'
-                        response += '\r\n'
-                        response += response_html_body
-                        clientsocket.sendall(response.encode())
+                    # ---------- 200 OK ----------
+                    response = 'HTTP/1.1 200 OK\r\n'
+                    response += '\r\n'
+                    response += response_html_body
+                    clientsocket.sendall(response.encode())
                     
         except FileNotFoundError:
             file_not_found_error = True
@@ -124,28 +104,6 @@ def thread_function(clientsocket):
             response_header = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
             clientsocket.sendall(response_header.encode())
     
-
-    # elif(method == 'PUT'):
-    #     if not modifiable_files(target_resource):
-    #         response =  "HTTP/1.1 403 Forbidden\r\n" 
-    #         clientsocket.sendall(response.encode())
-    #     else:
-    #         try:
-    #             if os.path.exists(target_resource):
-    #                 with open(file_path, 'w') as file:
-    #                 file.write(target_resource)
-    #                 response_header = "HTTP/1.1 200 OK\r\n\r\n"
-    #             else:
-    #                 with open(target_resource, 'w') as file:
-    #                     file.write(request_body)
-    #                     response_header = (
-    #                     "HTTP/1.1 201 Created\r\n"
-    #                     "Location: {}\r\n\r\n"
-    #                  ).format(path)
-    #                 client_socket.sendall(response_header.encode())
-    #             except Exception as e:
-    #                 response_header = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
-    #                     client_socket.sendall(response_header.encode())
                 
     elif(method == 'HEAD'):
         # ---------- 304 Not Modified ----------
@@ -176,8 +134,6 @@ def thread_function(clientsocket):
             # Get the ETag for test.html
             etag = hashlib.md5(target_resource.encode('utf-8')).hexdigest()
             etag = '"' + etag + '"'
-            print('ETAG:', etag)
-            print('CONDITION_ETAG:', condition_etag)
 
             # Compare for condition
             if condition_etag == etag:
