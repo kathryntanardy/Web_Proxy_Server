@@ -3,6 +3,7 @@ import threading
 import os
 from datetime import datetime, timezone
 import hashlib
+import sys
 
 def modifiable_files(path):
     restricted_dir = "restricted/"
@@ -29,7 +30,7 @@ def thread_function(clientsocket):
         http_ver = request_line_split[2]
         if http_ver != 'HTTP/1.1':
             wrong_syntax = True
-            error_message = "Malformed HTTP version: HTTP/1.1.1"
+            error_message = "Malformed HTTP version: HTTP/1.1"
     #If the request line is not valid: 400 error     
     else: 
         wrong_syntax = True
@@ -83,6 +84,21 @@ def thread_function(clientsocket):
                     html_file = open(target_resource, "r")
                     if not modifiable_files(target_resource):
                         response = 'HTTP/1.1 403 Forbidden\r\n'
+                        response += '\r\n'
+                        response += f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+    <meta name="author" content="">
+    <meta name="description" content="">
+    <meta name="viewport"s content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <p>Page Restricted</p>
+</body>
+</html>
+"""
                         clientsocket.sendall(response.encode())
                     else:
                         response_html_body = html_file.read()
@@ -94,7 +110,6 @@ def thread_function(clientsocket):
                         clientsocket.sendall(response.encode())
                     
         except FileNotFoundError:
-            print("HELLO")
             file_not_found_error = True
 
 
@@ -148,12 +163,12 @@ def thread_function(clientsocket):
 
             if file_modified_time_dt <= condition_time_dt:
                 response = 'HTTP/1.1 304 Not Modified\r\n'
+                response += f'Last-Modified: {file_modified_time_dt.strftime('%a, %d %b %Y %H:%M:%S GMT')}\r\n'
                 clientsocket.sendall(response.encode())
             # ---------- 200 OK ----------
             else:
                 # Outputs the HEAD
                 response = 'HTTP/1.1 200 OK\r\n'
-                # response += f"Date: {etag_server}\r\n"
                 clientsocket.sendall(response.encode())
 
 
@@ -173,25 +188,40 @@ def thread_function(clientsocket):
             else:
                 # Outputs the HEAD
                 response = 'HTTP/1.1 200 OK\r\n'
-                # response += f'ETag: "{etag}"\r\n'
                 clientsocket.sendall(response.encode())
 
         # ---------- 200 OK ----------
         else:
             # Outputs the HEAD
             response = 'HTTP/1.1 200 OK\r\n'
-            # response += f"ETag: {etag}\r\n"
             clientsocket.sendall(response.encode())
    
         
     # ---------- 404 Not Found ----------
     if(file_not_found_error):
         response = 'HTTP/1.1 404 Not Found\r\n'
+        response += '\r\n'
+        response += f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+    <meta name="author" content="">
+    <meta name="description" content="">
+    <meta name="viewport"s content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <p>URL requested not found!</p>
+</body>
+</html>
+"""
         clientsocket.sendall(response.encode())
 
     # ---------- 400 Bad Request ---------- TODO: check whether have to output in the page or no
     elif(wrong_syntax):
-        response_html_body =  f"""<!DOCTYPE html>
+        response = 'HTTP/1.1 400 Bad Request\r\n'
+        response += '\r\n'
+        response += f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -205,13 +235,6 @@ def thread_function(clientsocket):
 </body>
 </html>
 """
-
-        with open("error.html", "w") as error_html:
-            error_html.write(response_html_body)
-
-        response = 'HTTP/1.1 400 Bad Request\r\n'
-        response += '\r\n'
-        response += response_html_body
 
         clientsocket.sendall(response.encode())
     
@@ -230,7 +253,6 @@ def main():
         (clientsocket, address) = serverSocket.accept()
         client_thread = threading.Thread(target=thread_function, args=(clientsocket,))
         client_thread.start()
-
 
 if __name__ == '__main__':
     main()
